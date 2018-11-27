@@ -17,4 +17,4 @@ II/ Feature selection
 III/ Models and measure of the quality
 
 a) Boostrap   
-b) 
+b) Linear regression model 
