@@ -14,7 +14,8 @@ test_data <- read.csv('/Users/nolwenbrosson/Desktop/Cours Nolwen/Cours ESSEC/Big
 
 # Merge the two sets into a single one : Full for easier data cleaning
 # We also remove 'Id' and 'SalePrice' columns
-df.fulldata <- rbind(within(training_data, rm('Id','SalePrice')), within(test_data, rm('Id')))
+test_data['SalePrice'] = 0
+df.fulldata <- rbind(within(training_data, rm('Id')), within(test_data, rm('Id')))
 dim(df.fulldata)
 
 # First, we will check for NA values and have a look at the columns with the most NA values
@@ -383,12 +384,12 @@ paste('There are', sum(sapply(df.numeric, is.character)), 'character columns lef
 
 # No more character values left
 
+# Creation of the dataframes we will use to build the models
 
+X_train <- df.numeric[1:1460,]
+X_test <- df.numeric[1461:2919,]
+Y_train <- X_train['SalePrice']
+X_train <- rbind(within(X_train, rm('SalePrice')))
+X_test <- rbind(within(X_test, rm('SalePrice')))
 
-
-
-
-
-
-
-
+################ End of Data cleaning ########################
