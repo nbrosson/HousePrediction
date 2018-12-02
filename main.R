@@ -614,12 +614,14 @@ test = all_data[-train.index, ]
 ridge = glmnet(x = as.matrix(train[, -193]), 
                y = train[, 193], 
                alpha = 0,
-               family = "gaussian")
+               family = "gaussian",
+               standardize=TRUE)
 
 lasso = glmnet(x = as.matrix(train[, -193]), 
                y = train[, 193], 
                alpha = 1,
-               family = "gaussian")
+               family = "gaussian",
+               standardize=TRUE)
 
 par(mfcol = c(1, 2))
 plot(lasso, xvar='lambda', main="Lasso")
