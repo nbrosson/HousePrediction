@@ -105,7 +105,7 @@ df.fulldata[is.na(df.fulldata$SaleType),c('SaleCondition')]
 
 table(df.fulldata$SaleCondition, df.fulldata$SaleType)
 
-# Most houses with SaleCondition = ‘Normal’ have a SaleType of ‘WD’. We’ll replace the NA accordingly.
+# Most houses with SaleCondition = 'Normal' have a SaleType of 'WD'. We'll replace the NA accordingly.
 df.fulldata$SaleType[is.na(df.fulldata$SaleType)] = 'WD'
 
 plot.categoric('Functional', df.fulldata)
@@ -147,8 +147,8 @@ df.fulldata[2611, 'MasVnrType'] = 'BrkFace'
 df.fulldata$MasVnrType[is.na(df.fulldata$MasVnrType)] = 'None'
 df.fulldata$MasVnrArea[is.na(df.fulldata$MasVnrArea)] = 0
 
-# There are 486 missing values for LotFrontage, which is quite a lot of values to fill and we can’t just replace these with 0. 
-# We’re given that “LotFrontage: Linear feet of street connected to property.” 
+# There are 486 missing values for LotFrontage, which is quite a lot of values to fill and we can't just replace these with 0. 
+# We're given that "LotFrontage: Linear feet of street connected to property." 
 # The area of each street connected to the house property is most likely going to have a similar area to other houses in its neighborhood. 
 # We can group by each neighborhood and take the median of each LotFrontage and fill the missing values of each LotFrontage based on what neighborhood the house comes from.
 
@@ -166,7 +166,7 @@ for (i in idx){
   df.fulldata[i,'LotFrontage'] <- lot.median[[1]]
 }
 
-# We can replace any missing values for Fence and MiscFeature with ‘None’ as they probably don’t have this feature with their property.
+# We can replace any missing values for Fence and MiscFeature with 'None' as they probably don't have this feature with their property.
 plot.categoric('Fence', df.fulldata)
 df.fulldata$Fence[is.na(df.fulldata$Fence)] = 'None'
 
@@ -180,7 +180,7 @@ which((df.fulldata$Fireplaces > 0) & (is.na(df.fulldata$FireplaceQu)))
 df.fulldata$FireplaceQu[is.na(df.fulldata$FireplaceQu)] = 'None'
 
 # For Alley, we can find 2721 missing values only 2 options Grvl and Pave. 
-# We can fill ‘None’ for houses with NA’s since they must not have any type of alley.
+# We can fill 'None' for houses with NA's since they must not have any type of alley.
 plot.categoric('Alley', df.fulldata)
 df.fulldata$Alley[is.na(df.fulldata$Alley)] = 'None'
 
@@ -354,10 +354,10 @@ df.numeric['Neighborhood'] <- (df.fulldata$Neighborhood %in% rich.neighborhood) 
 # dummy variables 
 
 dummies_colstoadd <- select(df.fulldata, BldgType, HouseStyle, RoofStyle, RoofMatl, Exterior1st,
-                                                                Exterior2nd, MasVnrType,
-                                                                Foundation, BsmtCond, Heating,
-                                                                CentralAir, PoolQC, SaleType,
-                                                                SaleCondition, Nbrh.factor)
+                            Exterior2nd, MasVnrType,
+                            Foundation, BsmtCond, Heating,
+                            CentralAir, PoolQC, SaleType,
+                            SaleCondition, Nbrh.factor)
 dummies_colstoadd <- dummy_cols(dummies_colstoadd)
 df.numeric <- cbind(df.numeric, dummies_colstoadd)
 
@@ -388,8 +388,168 @@ paste('There are', sum(sapply(df.numeric, is.character)), 'character columns lef
 
 X_train <- df.numeric[1:1460,]
 X_test <- df.numeric[1461:2919,]
-Y_train <- X_train['SalePrice']
-X_train <- rbind(within(X_train, rm('SalePrice')))
-X_test <- rbind(within(X_test, rm('SalePrice')))
 
-################ End of Data cleaning ########################
+
+
+
+######################################################################################### Fitting models ##################################################################################
+######################################################################################### Forward Stepwise Regression #################################################################################
+null = lm(SalePrice ~ 1, data = X_train)  
+full = lm(SalePrice ~ ., data = X_train)
+
+forward.lm = step(null, scope=list(lower=null, upper=full), direction="forward")
+
+summary(forward.lm)
+lm.pred.forward <- predict(forward.lm, X_test)
+lm.pred.forward
+res <- data.frame(Id = test_data$Id, SalePrice = lm.pred.forward)
+
+head(res)
+#class(res)
+write.csv(res, file = "New_dataset_price_stepfv2.csv", row.names = FALSE)
+######################################################################################### Backward Stepwise Regression #################################################################################
+null = lm(SalePrice ~ 1, data=X_train)
+full = lm(SalePrice ~ ., data=X_train) 
+
+backward.lm <- step (full, scope = list(full, null), direction = 'backward')
+
+summary(lm.back)
+lm.pred <- predict(backward.lm, X_test)
+res <- data.frame(SalePrice = lm.pred)
+write.csv(res, file = "New_dataset_price_stepb.csv", row.names = FALSE)
+
+#########################################################################################   Both Stepwise Regression      ############################################################################################
+
+both_null <- step(null, scope = list (upper = full), direction = 'both')
+both_full <- step(full, scope = list(upper = full), direction ='both')
+summary(both_full)
+summary(both_null)
+
+#########################################################################################    Gradient B Descent T        ###############################################################################################################
+
+install.packages("gbm")
+install.packages("caret")
+
+
+library(gbm)
+library(caret)
+
+
+#set.seed(1234)
+
+ctrl <- trainControl(method = "cv", number = 10, repeats = 50, verboseIter = TRUE)
+
+
+lm.gbm <- train(SalePrice ~ . , data = X_train,  method = "gbm",  trControl = ctrl)
+summary(lm.gbm)
+
+lm.pred <- predict(lm.gbm, X_test)
+res <- data.frame(Id = test_data$Id ,SalePrice = lm.pred)
+write.csv(res, file = "price_gbm.csv", row.names = FALSE)
+
+
+
+################### Lasso & Ridge ############################################################################################################################################
+require(glmnet)
+str(all_data)
+
+# Build a training set taking 80% of the data 
+
+set.seed(1234)
+train.index = sample(x=1:nrow(all_data),
+                     size=ceiling(0.8*nrow(all_data)))
+
+train = all_data[train.index, ]
+test = all_data[-train.index, ]
+
+#  We build both ridge (alpha = 0) and lasso (alpha =1) models
+
+ridge = glmnet(x = as.matrix(train[, -193]), 
+               y = train[, 193], 
+               alpha = 0,
+               family = "gaussian")
+
+lasso = glmnet(x = as.matrix(train[, -193]), 
+               y = train[, 193], 
+               alpha = 1,
+               family = "gaussian")
+
+par(mfcol = c(1, 2))
+plot(lasso, xvar='lambda', main="Lasso")
+plot(ridge, xvar='lambda', main="Ridge")
+
+# The cv.glmnet does a cross validation for the glmnet function
+
+cv.lasso = cv.glmnet(x = as.matrix(train[, -193]), 
+                     y = train[, 193], 
+                     alpha = 1,  # lasso
+                     family = "gaussian")
+
+best.lambdala = cv.lasso$lambda.min
+best.lambdala #2.667542e-05
+
+
+cv.ridge = cv.glmnet(x = as.matrix(train[, -193]), 
+                     y = train[, 193], 
+                     alpha = 0,  
+                     family = "gaussian")
+
+best.lambdari = cv.ridge$lambda.min
+best.lambdari# 0.001128168
+
+plot(lasso, xvar='lambda', main="Lasso")
+abline(v=log(best.lambdala), col="blue", lty=5.5 )
+
+plot(ridge, xvar='lambda', main="Ridge")
+abline(v=log(best.lambdari), col="red", lty=5.5 )
+
+coef(cv.lasso, s = "lambda.min")
+select.ind = which(coef(cv.lasso, s = "lambda.min") != 0)
+select.ind = select.ind[-1]-1 
+select.ind
+select.varialbes = colnames(train)[select.ind]
+select.varialbes
+
+# Prediction part: Note that for Lasso and Ridge, we took the best lambda penalty from the cross validation glmnet.
+# This allows to prevent us from overfitting 
+
+lm(SalePrice~ ., train[, c(select.varialbes, "SalePrice")])
+
+ridge.test = predict(ridge, 
+                     s = best.lambdari, 
+                     newx = as.matrix(test[, -193]))
+lasso.test = predict(lasso, 
+                     s = best.lambdala, 
+                     newx = as.matrix(test[, -193]))
+
+
+r_squared(test$SalePrice, ridge.test)
+# -0.7296105
+
+r_squared(test$SalePrice, lasso.test)
+#-0.7296106
+
+
+################################################################################################################## bootstrap #####################################################################################################
+library(boot)
+
+
+all_data <- rbind(X_train,X_test)
+price = all_data$SalePrice
+n = length(price)
+print(mean(price))
+hist(x = price, probability = TRUE, xlab = "Price", main = "Histogram of Price")
+
+B = 100000 ## number of bootstraps
+results = numeric(B) ## vector to hold results
+for(b in 1:B){
+  i = sample(x = 1:n, size = n, replace = TRUE) ## sample indices
+  bootSample = price[i] ## get data
+  thetaHat = mean(bootSample) ## calculate the mean for bootstrap sample
+  results[b] = thetaHat ## store results
+}
+
+hist(x = results, probability = TRUE, 
+     main = "Bootstrapped Samples of Mean_price",
+     xlab = "theta estimates")
+results
