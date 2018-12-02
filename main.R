@@ -1,3 +1,4 @@
+library(randomForest)
 library(ggplot2)
 library(fpp2)
 library(dplyr)
@@ -384,6 +385,151 @@ paste('There are', sum(sapply(df.numeric, is.character)), 'character columns lef
 
 # No more character values left
 
+############################### Data Vizualisation Part######################################################
+
+# For this part, we will go back to non dummy variables and create some variables to make interesting vizualisation
+# As we don't want to modify the df.numeric database, we will create a copy of it and make all the modifications on 
+# this copy
+
+
+# Creation of the copy of df.numeric
+
+df.numeric_fordataviz <- df.numeric 
+
+
+### transform some dummy variables back to numeric
+
+df.numeric_fordataviz$poolQc <- (df.numeric_fordataviz$PoolQC_Ex)*3+(df.numeric_fordataviz$PoolQC_Gd)*2+(df.numeric_fordataviz$PoolQC_Fa)*1+(df.numeric_fordataviz$PoolQC_None)*0
+table(df.numeric_fordataviz$poolQc)
+df.numeric_fordataviz$PoolQC_None <- NULL
+df.numeric_fordataviz$PoolQC_Ex <- NULL
+df.numeric_fordataviz$PoolQC_Gd <- NULL
+df.numeric_fordataviz$PoolQC_Fa <- NULL
+
+df.numeric_fordataviz$BsmtCond <- (df.numeric_fordataviz$BsmtCond_Gd)*4+(df.numeric_fordataviz$BsmtCond_TA)*3+(df.numeric_fordataviz$BsmtCond_Fa)*2+(df.numeric_fordataviz$BsmtCond_Po)*1+(df.numeric_fordataviz$BsmtCond_None)*0
+df.numeric_fordataviz$BsmtCond_Gd <- NULL
+df.numeric_fordataviz$BsmtCond_TA <- NULL
+df.numeric_fordataviz$BsmtCond_Fa <- NULL
+df.numeric_fordataviz$BsmtCond_Po <- NULL
+df.numeric_fordataviz$BsmtCond_None <- NULL
+
+
+
+### combine all bathroom 
+
+df.numeric_fordataviz$TotBathrooms <- df.numeric_fordataviz$FullBath + (df.numeric_fordataviz$HalfBath)*0.5 + df.numeric_fordataviz$BsmtFullBath + (df.numeric_fordataviz$BsmtHalfBath)*0.5
+df.numeric_fordataviz$FullBath <- NULL
+df.numeric_fordataviz$HalfBath <- NULL
+df.numeric_fordataviz$BsmtFullBath <- NULL
+df.numeric_fordataviz$BsmtHalfBath <- NULL
+
+### make houseage variable
+
+df.numeric_fordataviz$houseage <- (df.numeric_fordataviz$YrSold) - (df.numeric_fordataviz$YearRemodAdd)
+df.numeric_fordataviz$houseage[which(df.numeric_fordataviz$houseage<0)]=0
+df.numeric_fordataviz$YrSold<-NULL
+df.numeric_fordataviz$YearRemodAdd<-NULL
+df.numeric_fordataviz$YearBuilt<-NULL
+
+### garageage
+df.numeric_fordataviz$garageage <- 2011 - df.numeric_fordataviz$GarageYrBlt
+df.numeric_fordataviz$GarageYrBlt <- NULL
+
+#total square feet 
+df.numeric_fordataviz$totalsqft <- df.numeric_fordataviz$GrLivArea+df.numeric_fordataviz$TotalBsmtSF
+df.numeric_fordataviz$GrLivArea <- NULL
+df.numeric_fordataviz$TotalBsmtSF <- NULL
+
+#porch variables combined
+df.numeric_fordataviz$totalporchsf <- df.numeric_fordataviz$OpenPorchSF+df.numeric_fordataviz$EnclosedPorch+df.numeric_fordataviz$X3SsnPorch+df.numeric_fordataviz$ScreenPorch
+df.numeric_fordataviz$OpenPorchSF<-NULL
+df.numeric_fordataviz$X3SsnPorch <-NULL
+df.numeric_fordataviz$ScreenPorch<-NULL
+df.numeric_fordataviz$EnclosedPorch<-NULL
+
+df.numeric_fordataviz$MSSubClass<-NULL
+
+paste('There are', sum(sapply(df.numeric_fordataviz, is.character)), 'character columns left')
+
+#centralair combined
+df.numeric_fordataviz$CentralAir_N<-NULL
+
+# No more character values left
+
+#separate training and testing data set
+head(df.numeric_fordataviz)
+dim(df.numeric_fordataviz)
+
+dim(training_data)
+dim(test_data)
+train<- df.numeric_fordataviz[1:1460,,drop=F]
+train$salePrice <- training_data$SalePrice
+dim(train)
+test<- df.numeric_fordataviz[1461:2919,,drop=F]
+dim(test)
+
+#see distribution of saleprice
+ggplot(data=as.data.frame(training_data$SalePrice), aes(x=training_data$SalePrice)) +
+  geom_histogram(fill="skyblue", binwidth = 10000) +
+  scale_x_continuous(breaks= seq(0, 800000, by=100000), labels = comma)
+
+summary(training_data$SalePrice)
+df.numeric_fordataviz$gara
+#remove highly correlated variables, correation of the "garage columns
+heatmap(cor(df.numeric_fordataviz[,grep('^Garage',names(df.numeric_fordataviz))]))
+#shows high correalation: car&area, qual&cond, drop area&cond
+df.numeric_fordataviz$GarageArea<-NULL
+df.numeric_fordataviz$GarageCond<-NULL
+
+#then fireplace 
+cor(df.numeric_fordataviz[,grep('^Fireplace',names(df.numeric_fordataviz))]) #fireplaces and quality are highly correlated,drop fireplaces
+df.numeric_fordataviz$Fireplaces<-NULL
+
+#then basement, heating, overall,exterior,saletype,roof, lot
+cor(df.numeric_fordataviz[,grep('^Bsmt',names(df.numeric_fordataviz))]) #found none
+cor(df.numeric_fordataviz[,grep('^Heat',names(df.numeric_fordataviz))]) #found none
+cor(df.numeric_fordataviz[,grep('^Overall',names(df.numeric_fordataviz))]) # 90% correlation, drop cond
+df.numeric_fordataviz$OverallCond <-NULL
+cor(df.numeric_fordataviz[,grep('^Bsmt',names(df.numeric_fordataviz))]) #found none
+View(cor(df.numeric_fordataviz[,grep('^Sale',names(df.numeric_fordataviz))])) #found none
+View(cor(df.numeric_fordataviz[,grep('^Roof',names(df.numeric_fordataviz))])) #found none
+cor(df.numeric_fordataviz[,grep('^Lot',names(df.numeric_fordataviz))]) #found none
+
+#importance visualization quick random forest
+set.seed(1)
+quick_RF <- randomForest(x=df.numeric_fordataviz[1:1460,], y=train$salePrice, ntree=100,importance=TRUE)
+imp_RF <- importance(quick_RF)
+imp_DF <- data.frame(Variables = row.names(imp_RF), MSE = imp_RF[,1])
+imp_DF <- imp_DF[order(imp_DF$MSE, decreasing = TRUE),]
+
+ggplot(imp_DF[1:20,], aes(x=reorder(Variables, MSE), y=MSE, fill=MSE)) + geom_bar(stat = 'identity') + labs(x = 'Variables', y= 'feature importance / % increase MSE if variable is randomly permuted') + coord_flip() + theme(legend.position="none")
+
+#
+s1 <- ggplot(data= df.numeric_fordataviz, aes(x=totalsqft)) + geom_density() + labs(x='total square feet living area')
+s2<- ggplot(data=df.numeric_fordataviz, aes(x=as.factor(OverallQual))) + geom_histogram(stat='count') + labs(x='overall quality')
+s3 <- ggplot(data=df.numeric_fordataviz, aes(x=as.factor(TotBathrooms))) + geom_histogram(stat='count') + labs(x='total bathrooms')
+s4 <- ggplot(data= df.numeric_fordataviz, aes(x=houseage)) + geom_density() + labs(x='house age')
+s5 <- ggplot(data=df.numeric_fordataviz, aes(x=as.factor(GarageCars))) + geom_histogram(stat='count') + labs(x='garage size')
+s6 <- ggplot(data= df.numeric_fordataviz, aes(x=LotArea)) + geom_density() + labs(x='total lot area')
+s7 <- ggplot(data=df.numeric_fordataviz, aes(x=as.factor(FireplaceQu))) + geom_histogram(stat='count') + labs(x='fireplace quality')
+s8 <- ggplot(data=df.numeric_fordataviz, aes(x=as.factor(KitchenQual))) + geom_histogram(stat='count') + labs(x='kitchen quality')
+
+install.packages("cowplot")
+library(cowplot)
+plot_grid(s1, s2, s3, s4, s5, s6, s7, s8, ncol=2,align = "V")
+
+
+
+############################## End of the data vizualisation part ##################################################
+
+
+
+
+####################### Feature Selection + Model parts #######################################################
+
+
+
+
 # Creation of the dataframes we will use to build the models
 
 X_train <- df.numeric[1:1460,]
@@ -392,8 +538,9 @@ X_test <- df.numeric[1461:2919,]
 
 
 
-######################################################################################### Fitting models ##################################################################################
-######################################################################################### Forward Stepwise Regression #################################################################################
+########## Fitting models ##########
+########## Forward Stepwise Regression #####
+
 null = lm(SalePrice ~ 1, data = X_train)  
 full = lm(SalePrice ~ ., data = X_train)
 
