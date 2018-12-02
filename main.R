@@ -514,7 +514,6 @@ s6 <- ggplot(data= df.numeric_fordataviz, aes(x=LotArea)) + geom_density() + lab
 s7 <- ggplot(data=df.numeric_fordataviz, aes(x=as.factor(FireplaceQu))) + geom_histogram(stat='count') + labs(x='fireplace quality')
 s8 <- ggplot(data=df.numeric_fordataviz, aes(x=as.factor(KitchenQual))) + geom_histogram(stat='count') + labs(x='kitchen quality')
 
-install.packages("cowplot")
 library(cowplot)
 plot_grid(s1, s2, s3, s4, s5, s6, s7, s8, ncol=2,align = "V")
 
@@ -535,6 +534,51 @@ plot_grid(s1, s2, s3, s4, s5, s6, s7, s8, ncol=2,align = "V")
 X_train <- df.numeric[1:1460,]
 X_test <- df.numeric[1461:2919,]
 
+####################### Bootstrap for normal linear regression model #######################################################
+
+# First, we create a normal regression linear model and take the coefficients of the model.
+# We also fix some size numbers
+
+boot_lm <- lm(SalePrice~ ., X_train)
+former_coefs <- coefficients(boot_lm)
+beta_coefs <- coefficients(boot_lm)
+
+R = 1000                      # number of bootstrap samples
+n = nrow(X_train)              # sample size
+k = length(coefficients(boot_lm))     # number of coefficients
+
+
+# set up a empty Rxn matrix B which will take bootstrap coefficients 
+B = matrix(nrow = R, ncol = k)
+
+# loop R times
+set.seed(111)
+for(i in 1:R){
+  # sample data with replacement
+  boot.data = X_train[sample(x = 1:n, size = n, replace = TRUE), ]
+  # fit the model on the boostrapped sample
+  boot.logit = lm(SalePrice~ ., 
+                   data=boot.data)
+  # store the coefficients
+  B[i,] = coef(boot.logit)
+}
+
+# Now, we want to make the difference between the bootstrap coefficient and the former coefficients to get the bias
+
+for(i in 1:k){
+  B[,i] <- B[,i] - beta_coefs[i]
+}
+
+# Set up the bias matrix and then find all bias coefficients
+# Finaly, our new coefficients are the former ones minus the bias, for each feature. 
+bias_matrix <- matrix(nrow = 1, ncol = k)
+for(i in 1:k){
+  bias_matrix[i] <- mean(B[,i])
+  beta_coefs[i] <- beta_coefs[i] - bias_matrix[i]
+}
+
+boot_lm$coefficients <- beta_coefs
+predictions <- predict(boot_lm, X_test)
 
 
 
