@@ -8,6 +8,7 @@ library(scales) # plotting $$
 library(e1071) # skewness
 library(corrplot) # correlation plot
 library(fastDummies)
+library(boot)
 
 # Load the training and test sets
 training_data <- read.csv('/Users/nolwenbrosson/Desktop/Cours Nolwen/Cours ESSEC/Big Data Analytics/Group Project/House prediction/all/train.csv', stringsAsFactors = FALSE)
@@ -526,9 +527,6 @@ plot_grid(s1, s2, s3, s4, s5, s6, s7, s8, ncol=2,align = "V")
 
 ####################### Feature Selection + Model parts #######################################################
 
-
-
-
 # Creation of the dataframes we will use to build the models
 
 X_train <- df.numeric[1:1460,]
@@ -578,12 +576,11 @@ for(i in 1:k){
 }
 
 boot_lm$coefficients <- beta_coefs
-predictions <- predict(boot_lm, X_test)
-
+predictions_boot <- predict(boot_lm, X_test) # Doesn't work  
 
 
 ########## Fitting models ##########
-########## Forward Stepwise Regression #####
+#################################### Forward Stepwise Regression #####
 
 null = lm(SalePrice ~ 1, data = X_train)  
 full = lm(SalePrice ~ ., data = X_train)
@@ -598,7 +595,7 @@ res <- data.frame(Id = test_data$Id, SalePrice = lm.pred.forward)
 head(res)
 #class(res)
 write.csv(res, file = "New_dataset_price_stepfv2.csv", row.names = FALSE)
-######################################################################################### Backward Stepwise Regression #################################################################################
+################################### Backward Stepwise Regression ######
 null = lm(SalePrice ~ 1, data=X_train)
 full = lm(SalePrice ~ ., data=X_train) 
 
@@ -609,14 +606,14 @@ lm.pred <- predict(backward.lm, X_test)
 res <- data.frame(SalePrice = lm.pred)
 write.csv(res, file = "New_dataset_price_stepb.csv", row.names = FALSE)
 
-#########################################################################################   Both Stepwise Regression      ############################################################################################
+#############################################   Both Stepwise Regression      ############################################################################################
 
 both_null <- step(null, scope = list (upper = full), direction = 'both')
 both_full <- step(full, scope = list(upper = full), direction ='both')
 summary(both_full)
 summary(both_null)
 
-#########################################################################################    Gradient B Descent T        ###############################################################################################################
+##############################################    Gradient B Descent T        ###############################################################################################################
 
 install.packages("gbm")
 install.packages("caret")
@@ -640,8 +637,10 @@ write.csv(res, file = "price_gbm.csv", row.names = FALSE)
 
 
 
-################### Lasso & Ridge ############################################################################################################################################
+
+################### Lasso & Ridge ###############################################################################
 require(glmnet)
+all_data <- X_train
 str(all_data)
 
 # Build a training set taking 80% of the data 
@@ -658,14 +657,12 @@ test = all_data[-train.index, ]
 ridge = glmnet(x = as.matrix(train[, -193]), 
                y = train[, 193], 
                alpha = 0,
-               family = "gaussian",
-               standardize=TRUE)
+               family = "gaussian")
 
 lasso = glmnet(x = as.matrix(train[, -193]), 
                y = train[, 193], 
                alpha = 1,
-               family = "gaussian",
-               standardize=TRUE)
+               family = "gaussian")
 
 par(mfcol = c(1, 2))
 plot(lasso, xvar='lambda', main="Lasso")
@@ -723,26 +720,3 @@ r_squared(test$SalePrice, lasso.test)
 #-0.7296106
 
 
-################################################################################################################## bootstrap #####################################################################################################
-library(boot)
-
-
-all_data <- rbind(X_train,X_test)
-price = all_data$SalePrice
-n = length(price)
-print(mean(price))
-hist(x = price, probability = TRUE, xlab = "Price", main = "Histogram of Price")
-
-B = 100000 ## number of bootstraps
-results = numeric(B) ## vector to hold results
-for(b in 1:B){
-  i = sample(x = 1:n, size = n, replace = TRUE) ## sample indices
-  bootSample = price[i] ## get data
-  thetaHat = mean(bootSample) ## calculate the mean for bootstrap sample
-  results[b] = thetaHat ## store results
-}
-
-hist(x = results, probability = TRUE, 
-     main = "Bootstrapped Samples of Mean_price",
-     xlab = "theta estimates")
-results
