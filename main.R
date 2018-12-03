@@ -642,6 +642,7 @@ write.csv(res, file = "price_gbm.csv", row.names = FALSE)
 require(glmnet)
 all_data <- X_train
 str(all_data)
+labels_index <- which(colnames(all_data)=="SalePrice")
 
 # Build a training set taking 80% of the data 
 
@@ -654,13 +655,13 @@ test = all_data[-train.index, ]
 
 #  We build both ridge (alpha = 0) and lasso (alpha =1) models
 
-ridge = glmnet(x = as.matrix(train[, -193]), 
-               y = train[, 193], 
+ridge = glmnet(x = as.matrix(train[, -labels_index]), 
+               y = train[, labels_index], 
                alpha = 0,
                family = "gaussian")
 
-lasso = glmnet(x = as.matrix(train[, -193]), 
-               y = train[, 193], 
+lasso = glmnet(x = as.matrix(train[, -labels_index]), 
+               y = train[, labels_index], 
                alpha = 1,
                family = "gaussian")
 
@@ -670,8 +671,8 @@ plot(ridge, xvar='lambda', main="Ridge")
 
 # The cv.glmnet does a cross validation for the glmnet function
 
-cv.lasso = cv.glmnet(x = as.matrix(train[, -193]), 
-                     y = train[, 193], 
+cv.lasso = cv.glmnet(x = as.matrix(train[, -labels_index]), 
+                     y = train[, labels_index], 
                      alpha = 1,  # lasso
                      family = "gaussian")
 
@@ -679,8 +680,8 @@ best.lambdala = cv.lasso$lambda.min
 best.lambdala #2.667542e-05
 
 
-cv.ridge = cv.glmnet(x = as.matrix(train[, -193]), 
-                     y = train[, 193], 
+cv.ridge = cv.glmnet(x = as.matrix(train[, -labels_index]), 
+                     y = train[, labels_index], 
                      alpha = 0,  
                      family = "gaussian")
 
@@ -707,10 +708,10 @@ lm(SalePrice~ ., train[, c(select.varialbes, "SalePrice")])
 
 ridge.test = predict(ridge, 
                      s = best.lambdari, 
-                     newx = as.matrix(test[, -193]))
+                     newx = as.matrix(test[, -labels_index]))
 lasso.test = predict(lasso, 
                      s = best.lambdala, 
-                     newx = as.matrix(test[, -193]))
+                     newx = as.matrix(test[, -labels_index]))
 
 
 r_squared(test$SalePrice, ridge.test)
